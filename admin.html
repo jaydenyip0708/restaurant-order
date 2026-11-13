@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>後台訂單管理</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:1000px;margin:20px auto;padding:0 15px}
+table{width:100%;border-collapse:collapse;margin-top:15px;background:#fff}
+th,td{border:1px solid #ddd;padding:10px;text-align:left}
+th{background:#f4f4f4}
+select,button{padding:6px 10px}
+button{background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer}
+button:hover{background:#218838}
+.status-pending{color:#e67e22}
+.status-preparing{color:#3498db}
+.status-completed{color:#27ae60}
+.status-cancelled{color:#e74c3c}
+</style>
+</head>
+<body>
+<h2>訂單後台</h2>
+<button onclick="load()">重新載入</button>
+<table>
+  <thead>
+    <tr>
+      <th>訂單編號</th>
+      <th>時間</th>
+      <th>枱號</th>
+      <th>項目</th>
+      <th>金額</th>
+      <th>狀態</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody id="list"></tbody>
+</table>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwrEVs-cjGCn7W-arj4ogKIi6xjJpoqX8rNiAt0kCKiRUI5NtOzv-hvAfpgN011rgtZ/exec';
+const KEY = 'abc123';
+
+async function load(){
+  try {
+    const r = await fetch(`${API}?action=orders&key=${KEY}`);
+    const d = await r.json();
+    document.getElementById('list').innerHTML = (d.orders || []).map(o => `
+      <tr>
+        <td>${o.orderId}</td>
+        <td>${o.time}</td>
+        <td>${o.table || '-'}</td>
+        <td>${o.items}</td>
+        <td>HK$${o.total}</td>
+        <td class="status-${o.status}">${o.status}</td>
+        <td>
+          <select id="s-${o.orderId}">
+            <option value="pending" ${o.status==='pending'?'selected':''}>待處理</option>
+            <option value="preparing" ${o.status==='preparing'?'selected':''}>準備中</option>
+            <option value="completed" ${o.status==='completed'?'selected':''}>已完成</option>
+            <option value="cancelled" ${o.status==='cancelled'?'selected':''}>已取消</option>
+          </select>
+          <button onclick="update('${o.orderId}')">更新</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="7" style="text-align:center">暫無訂單</td></tr>';
+  } catch(e) {
+    document.getElementById('list').innerHTML = '<tr><td colspan="7">載入失敗</td></tr>';
+  }
+}
+
+async function update(id){
+  const status = document.getElementById('s-'+id).value;
+  try {
+    await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({
+        key: KEY,
+        action: 'updateStatus',
+        orderId: id,
+        status
+      })
+    });
+    load();
+  } catch(e) {
+    alert('更新失敗');
+  }
+}
+
+load();
+setInterval(load, 8000); // 每 8 秒自動刷新
+</script>
+</body>
+</html>
