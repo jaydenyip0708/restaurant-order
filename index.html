@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>餐廳下單</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:500px;margin:20px auto;padding:0 15px;background:#fafafa}
+h2{text-align:center}
+.item{border-bottom:1px solid #eee;padding:12px 0;display:flex;justify-content:space-between;align-items:center}
+.cart{margin-top:25px;background:#fff;padding:15px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+button{background:#007bff;color:white;border:none;padding:8px 14px;border-radius:5px;cursor:pointer}
+button:hover{background:#0056b3}
+input,textarea{width:100%;padding:10px;margin:6px 0;box-sizing:border-box;border:1px solid #ddd;border-radius:5px}
+</style>
+</head>
+<body>
+<h2>餐廳下單</h2>
+<input id="table" placeholder="枱號（例如 A1）">
+<div id="menu"></div>
+<div class="cart">
+  <h3>購物車</h3>
+  <div id="cart">未有項目</div>
+  <p>總金額：HK$ <span id="total">0</span></p>
+  <textarea id="note" placeholder="備註（可選）" rows="2"></textarea>
+  <button onclick="submitOrder()">提交訂單</button>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwrEVs-cjGCn7W-arj4ogKIi6xjJpoqX8rNiAt0kCKiRUI5NtOzv-hvAfpgN011rgtZ/exec';
+const KEY = 'abc123';
+let cart = [], menu = [];
+
+async function load(){
+  try {
+    const r = await fetch(`${API}?action=menu&key=${KEY}`);
+    const d = await r.json();
+    menu = d.menu || [];
+    showMenu();
+  } catch(e) {
+    document.getElementById('menu').innerHTML = '載入菜單失敗，請稍後再試';
+  }
+}
+
+function showMenu(){
+  document.getElementById('menu').innerHTML = menu.map(i => `
+    <div class="item">
+      <div><b>${i.name}</b><br>HK$${i.price} <small style="color:#666">${i.category}</small></div>
+      <button onclick="add(${i.id})">加入</button>
+    </div>`).join('');
+}
+
+function add(id){
+  const item = menu.find(x => x.id == id);
+  const exist = cart.find(x => x.id == id);
+  if(exist) exist.qty++;
+  else cart.push({...item, qty:1});
+  update();
+}
+
+function update(){
+  if(!cart.length){
+    document.getElementById('cart').innerHTML = '未有項目';
+    document.getElementById('total').textContent = 0;
+    return;
+  }
+  let html = '', total = 0;
+  cart.forEach(i => {
+    const sub = i.price * i.qty;
+    total += sub;
+    html += `${i.name} × ${i.qty} = HK$${sub}<br>`;
+  });
+  document.getElementById('cart').innerHTML = html;
+  document.getElementById('total').textContent = total;
+}
+
+async function submitOrder(){
+  if(!cart.length) return alert('請先加入項目');
+  const items = cart.map(i => `${i.name}x${i.qty}`).join(', ');
+  const total = cart.reduce((s,i) => s + i.price * i.qty, 0);
+  
+  try {
+    const r = await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({
+        key: KEY,
+        action: 'newOrder',
+        table: document.getElementById('table').value.trim(),
+        items,
+        total,
+        note: document.getElementById('note').value.trim()
+      })
+    });
+    const res = await r.json();
+    if(res.success){
+      alert('下單成功！\n訂單編號：' + res.orderId);
+      cart = [];
+      update();
+      document.getElementById('note').value = '';
+      document.getElementById('table').value = '';
+    } else {
+      alert('下單失敗：' + (res.error || '未知錯誤'));
+    }
+  } catch(e) {
+    alert('網絡錯誤，請重試');
+  }
+}
+
+load();
+</script>
+</body>
+</html>
